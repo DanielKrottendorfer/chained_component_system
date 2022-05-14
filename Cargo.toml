@@ -11,6 +11,7 @@ quote = "1.0"
 proc-macro2 = "1.0.24"
 cgmath = "0.17.0"
 procout = "0.1.11"
+threadpool = "1.8.1"
 
 [lib]
 proc-macro = true
