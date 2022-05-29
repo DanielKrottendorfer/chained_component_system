@@ -7,13 +7,6 @@ pub struct Goo(u32);
 #[derive(Debug, Default)]
 pub struct Hoo(f32);
 
-use std::{
-    sync::{Arc, Mutex, MutexGuard},
-    thread,
-    time::Duration,
-};
-
-
 use std::iter::Chain;
 
 chained_component_system!(
@@ -27,97 +20,44 @@ chained_component_system!(
     entities{
         Peon(foo, goo),
         Tree(foo, goo, loo),
-        Mage(foo, goo, hoo)
+        Mage(loo, goo)
     };
 
     global_systems{
-        FooSystem(foo, goo),
-        GooSystem(foo, goo, loo),
+        FooGooSystem(foo, goo),
+        GooLooSystem(goo, loo),
+        GooSystem(goo),
     };
 );
 
 #[test]
 fn test_add() {
+    
     let mut ecs = CHAINED_ECS::default();
 
     println!("{:?}", ecs);
 
     ecs.peon_soa.new_peon_soa(Foo("Peon"), Goo(11));
-    ecs.tree_soa.new_tree_soa(Foo("Tree"), Goo(22), Foo("Loo1"));
-    ecs.mage_soa.new_mage_soa(Foo("Mage"), Goo(11), Hoo(2.0));
+    ecs.tree_soa.new_tree_soa(Foo("Tree"), Goo(22), Foo("Loo Tree"));
+    ecs.mage_soa.new_mage_soa(Foo("Loo Mage"),Goo(33));
 
-    for i in ecs.get_foo_system_chunk_iterator() {
-        println!("get foo ____{:?}", i);
+    for i in ecs.get_foo_goo_system_chunk_iterator() {
+        println!("get foo goo ____{:?}", i);
+    }
+    for i in ecs.get_goo_loo_system_chunk_iterator() {
+        println!("get goo loo ____{:?}", i);
     }
     for i in ecs.get_goo_system_chunk_iterator() {
-        println!("get goo ____{:?}", i);
+        println!("get goo     ____{:?}", i);
     }
 }
 
-mod chunk {
+use std::{
+    sync::{Arc, Mutex, MutexGuard},
+    thread,
+    time::Duration,
+};
 
-    pub struct Chunk {
-        a0: Vec<f64>,
-        a1: Vec<f64>,
-        a2: Vec<f64>,
-    }
-
-    pub struct ChunkIterator<'a> {
-        a0: &'a mut Vec<f64>,
-        a1: &'a mut Vec<f64>,
-        a2: &'a mut Vec<f64>,
-        index: usize,
-    }
-
-    impl Chunk {
-        pub fn get_chunk_iter(&mut self) -> ChunkIterator<'_> {
-            ChunkIterator {
-                index: 0,
-                a0: &mut self.a0,
-                a1: &mut self.a1,
-                a2: &mut self.a2,
-            }
-        }
-    }
-
-    impl<'a> IntoIterator for &'a mut Chunk {
-        type Item = (&'a mut f64, &'a mut f64, &'a mut f64);
-
-        type IntoIter = ChunkIterator<'a>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            ChunkIterator {
-                index: 0,
-                a0: &mut self.a0,
-                a1: &mut self.a1,
-                a2: &mut self.a2,
-            }
-        }
-    }
-
-    impl<'a> Iterator for ChunkIterator<'a> {
-        type Item = (&'a mut f64, &'a mut f64, &'a mut f64);
-
-        fn next<'b>(&mut self) -> Option<Self::Item> {
-            let t = if self.a0.len() > self.index {
-                let a = self.a0.as_mut_ptr();
-                let b = self.a1.as_mut_ptr();
-                let c = self.a2.as_mut_ptr();
-                unsafe {
-                    Some((
-                        &mut *a.add(self.index),
-                        &mut *b.add(self.index),
-                        &mut *c.add(self.index),
-                    ))
-                }
-            } else {
-                None
-            };
-            self.index += 1;
-            t
-        }
-    }
-}
 
 pub struct Chunk {
     a0: Mutex<Vec<f64>>,
@@ -241,21 +181,4 @@ fn chunk_test() {
 
     t1.join();
     t2.join();
-}
-
-#[test]
-fn test_chain_zip() {
-    let a0 = Arc::new(Mutex::new([0.0; 5]));
-    let a1 = Arc::new(Mutex::new([1.0; 5]));
-    let a2 = Arc::new(Mutex::new([2.0; 5]));
-
-    let a0l = a0.lock().unwrap();
-    let a1l = a1.lock().unwrap();
-    let a2l = a2.lock().unwrap();
-
-    let qw = a0l.iter().zip(a1l.iter()).zip(a2l.iter());
-
-    for k in qw {
-        println!("{:?}", k);
-    }
 }

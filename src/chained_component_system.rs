@@ -198,9 +198,7 @@ pub fn generate_chunk_iters(
         ));
 
         let mut chain = TokenStream::new();
-        let mut return_iter = TokenStream::new();
-
-        let mut did_chain = false;
+        let mut return_type = TokenStream::new();
 
         for ecs_soa in ecs_soas.iter() {
             if system_sig.1.iter().all(|x| {
@@ -224,40 +222,28 @@ pub fn generate_chunk_iters(
                     chain = quote! {
                         self. #ecs_field . #fn_name ()
                     };
-                    return_iter = quote! {
+                    return_type = quote! {
                         #chunk_iter_name
                     };
                 } else {
-                    did_chain = true;
                     chain = quote! {
                         #chain .chain(self. #ecs_field . #fn_name ())
                     };
-                    return_iter = quote! {
-                        Chain< #return_iter, #chunk_iter_name >
+                    return_type = quote! {
+                        Chain< #return_type, #chunk_iter_name >
                     };
                 }
             }
         }
 
         if !chain.is_empty() {
-            println!("+++++++++++\n{}\n++++++++++++++++", return_iter.to_string());
-            if did_chain {
-                output.extend(quote! {
-                    impl<'a> CHAINED_ECS {
-                        pub fn #fn_name(&mut self) -> #return_iter {
-                            #chain
-                        }
+            output.extend(quote! {
+                impl<'a> CHAINED_ECS {
+                    pub fn #fn_name (&mut self) -> #return_type {
+                        #chain
                     }
-                });
-            } else {
-                output.extend(quote! {
-                    impl CHAINED_ECS {
-                        pub fn #fn_name (&mut self) ->  #return_iter{
-                            #chain
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
     }
 

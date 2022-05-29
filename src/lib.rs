@@ -3,6 +3,7 @@ use std::borrow::BorrowMut;
 use chained_component_system::{generate_structs, parse_signatures};
 use proc_macro2::{TokenTree};
 use quote::quote;
+use std::iter::Chain;
 
 use crate::chained_component_system::{generate_chunk_iters, parse_component_labels};
 
