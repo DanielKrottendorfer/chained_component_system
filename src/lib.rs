@@ -1,10 +1,10 @@
 use std::borrow::BorrowMut;
 
 use chained_component_system::{generate_structs, parse_signatures};
-use proc_macro2::{Ident, TokenStream, TokenTree};
+use proc_macro2::{TokenTree};
 use quote::quote;
 
-use crate::chained_component_system::{parse_component_labels, generate_chunkiters};
+use crate::chained_component_system::{generate_chunk_iters, parse_component_labels};
 
 mod chained_component_system;
 
@@ -56,15 +56,14 @@ pub fn chained_component_system(_item: proc_macro::TokenStream) -> proc_macro::T
     let system_signatures = system_signatures.expect("global_systems missing");
 
     let mut ecs_soas = Vec::new();
-    let soas = generate_structs(&entity_signatures, &component_labels,&mut ecs_soas);
-    let chunks:TokenStream = generate_chunkiters(&component_labels,&system_signatures,&ecs_soas);
+    let soas = generate_structs(&entity_signatures, &component_labels, &mut ecs_soas);
+    let chunks = generate_chunk_iters(&component_labels, &system_signatures, &ecs_soas);
 
     let output = quote! {
         #soas
         #chunks
     };
 
-    println!("{:#?}", ecs_soas);
     println!("{}", output.to_string());
     output.into()
 }

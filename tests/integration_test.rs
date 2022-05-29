@@ -13,6 +13,9 @@ use std::{
     time::Duration,
 };
 
+
+use std::iter::Chain;
+
 chained_component_system!(
     components{
         foo: Foo,
@@ -23,12 +26,13 @@ chained_component_system!(
 
     entities{
         Peon(foo, goo),
-        Tree(foo, goo, loo)
+        Tree(foo, goo, loo),
+        Mage(foo, goo, hoo)
     };
 
     global_systems{
         FooSystem(foo, goo),
-        GooSystem(foo, goo,loo)
+        GooSystem(foo, goo, loo),
     };
 );
 
@@ -40,9 +44,13 @@ fn test_add() {
 
     ecs.peon_soa.new_peon_soa(Foo("Peon"), Goo(11));
     ecs.tree_soa.new_tree_soa(Foo("Tree"), Goo(22), Foo("Loo1"));
+    ecs.mage_soa.new_mage_soa(Foo("Mage"), Goo(11), Hoo(2.0));
 
-    for i in ecs.peon_soa.get_foosystemchunkiterator().chain(ecs.tree_soa.get_foosystemchunkiterator()) {
-        println!("{:?}",i);
+    for i in ecs.get_foo_system_chunk_iterator() {
+        println!("get foo ____{:?}", i);
+    }
+    for i in ecs.get_goo_system_chunk_iterator() {
+        println!("get goo ____{:?}", i);
     }
 }
 
