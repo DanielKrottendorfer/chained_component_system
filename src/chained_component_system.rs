@@ -1,4 +1,4 @@
-use std::borrow::{BorrowMut};
+use std::borrow::BorrowMut;
 
 use proc_macro2::{Group, Ident, TokenStream, TokenTree};
 use quote::quote;
@@ -87,13 +87,16 @@ pub fn generate_structs(
 ) -> TokenStream {
     let mut output = TokenStream::new();
 
+    let mut entity_soa_idents = Vec::new();
     let mut entity_idents = Vec::new();
     let mut ecs_fields = Vec::new();
 
+
     for entity in entity_signatures.iter() {
-        let entity_ident = quote::format_ident!("{}SOA", entity.0.clone());
+        let entity_soa_ident = quote::format_ident!("{}SOA", entity.0.clone());
         let ecs_field = quote::format_ident!("{}_soa", entity.0.to_string().to_lowercase());
-        entity_idents.push(entity_ident.clone());
+        entity_soa_idents.push(entity_soa_ident.clone());
+        entity_idents.push(entity.0.clone());
         ecs_fields.push(ecs_field.clone());
 
         let mut field_soa_idents = Vec::new();
@@ -122,23 +125,24 @@ pub fn generate_structs(
 
         output.extend(quote! {
             #[derive(Default,Debug)]
-            pub struct #entity_ident {
-                pub #( #field_soa_idents : Vec< #field_types > ,)*
+            pub struct #entity_soa_ident {
+                #(pub  #field_soa_idents : Vec< Option< #field_types > > ,)*
+                //pub entity_state: Vec<EntityState>
             }
 
         });
 
         let f_name = quote::format_ident!("new_{}", ecs_field);
         output.extend(quote! {
-            impl #entity_ident{
+            impl #entity_soa_ident{
                 pub fn #f_name (&mut self, #(#field_idents : #field_types ,)* ) {
-                    #(self. #field_soa_idents .push( #field_idents) ;)*
+                    #(self. #field_soa_idents .push( Some( #field_idents ) ) ;)*
                 }
             }
         });
 
         let ecs_soa = EcsSoa {
-            ecs_field: (ecs_field, entity_ident),
+            ecs_field: (ecs_field, entity_soa_ident),
             soa_fields,
         };
         soa_structs.push(ecs_soa);
@@ -147,8 +151,24 @@ pub fn generate_structs(
     output.extend(quote! {
         #[derive(Default,Debug)]
         pub struct CHAINED_ECS{
-            #(pub #ecs_fields : #entity_idents ,)*
+            #(pub #ecs_fields : #entity_soa_idents ,)*
         }
+
+        pub enum EntityType{
+            #( #entity_idents ,)*
+        }
+
+        pub struct Key {
+            index: usize,
+            generation: u32,
+            entity_type: EntityType
+        }
+        
+        pub enum EntityState{
+            Free{ next_free: usize },
+            Occupied{ key: Key }
+        }
+        
     });
 
     output
@@ -287,7 +307,7 @@ fn build_chunk_iter_struct(
 
     quote! {
         pub struct #chunk_iter_name <'a> {
-            #(#field_names: & 'a mut Vec< #field_types > ,)*
+            #(#field_names: & 'a mut Vec< Option< #field_types > > ,)*
 
             index: usize
         }
@@ -299,8 +319,8 @@ fn build_chunk_iter_struct(
 
                 let t = if self. #first_fn .len() > self.index {
                     #( let #field_names = self. #field_names .as_mut_ptr() ;)*
-                    unsafe {Some((
-                        #( &mut * #field_names .add(self.index) ,)*)
+                    unsafe {Some(
+                        (#( (* #field_names .add(self.index)).as_mut()? , )*)
                     )}
 
                 } else {
