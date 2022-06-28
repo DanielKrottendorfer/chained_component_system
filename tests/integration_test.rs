@@ -1,14 +1,13 @@
 use cgmath::Array;
 use chained_component_system::chained_component_system;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Foo(&'static str);
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Goo(u32);
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Hoo(f32);
 
-use std::borrow::BorrowMut;
 use std::iter::Chain;
 
 chained_component_system!(
@@ -43,6 +42,11 @@ fn test_add() {
         .new_tree_soa(Foo("Tree"), Goo(22), Foo("Loo Tree"));
     ecs.mage_soa
         .new_mage_soa(Foo("Loo Mage"), Goo(33), Hoo(0.0));
+
+    let ecs2 = ecs.clone();
+    thread::spawn(move || {
+        println!("ecs {:?}", ecs2);
+    });
 
     for i in ecs.get_foo_goo_system_chunk_iterator() {
         println!("foo goo     ____{:?}", i);
@@ -120,7 +124,7 @@ impl<'a> Iterator for ChunkIterator<'a> {
             let a = self.a0.as_mut_ptr();
             let b = self.a1.as_mut_ptr();
             let c = self.a2.as_mut_ptr();
-            let z ={
+            let z = {
                 unsafe {
                     Some((
                         (*a.add(self.index)).as_mut()?,
