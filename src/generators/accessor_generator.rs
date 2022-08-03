@@ -1,70 +1,78 @@
 use proc_macro2::*;
-use quote::quote;
+use quote::{format_ident, quote};
 
-use super::EcsSoa;
+use super::{to_snake_ident, EcsSoa};
 
 pub fn generate_accessors(
     component_labels: &Vec<(Ident, Ident)>,
-    system_signatures: &Vec<(Ident, Vec<Ident>)>,
+    system_signatures: &Vec<(Ident, Vec<(bool, Ident)>)>,
     ecs_soas: &Vec<EcsSoa>,
 ) -> TokenStream {
     let mut output = TokenStream::new();
     let mut output2 = TokenStream::new();
 
     for system_sig in system_signatures {
-        let accessor_name = quote::format_ident!("{}Accessor", system_sig.0);
-        let iterator_name = quote::format_ident!("{}Iterator", system_sig.0);
-
-        let s: String = accessor_name
-            .to_string()
-            .chars()
-            .map(|c| {
-                if c.is_uppercase() {
-                    format!("_{}", c.to_lowercase())
-                } else {
-                    c.to_string()
-                }
-            })
-            .collect();
-
-        let fn_name = quote::format_ident!("get{}", s);
-
         let mut soa_fits = Vec::new();
+        let mut entity_fits = Vec::new();
+
+        let mut keyed = false;
+        let key = quote::format_ident!("KEY");
 
         'ecsloop: for e in ecs_soas {
             for f in system_sig.1.iter() {
-                if !e.fields.iter().any(|x| x.0 == *f) {
+                if f.1 == key {
+                    continue;
+                }
+
+                if !e.fields.iter().any(|x| x.0 == f.1) {
                     continue 'ecsloop;
                 }
             }
             soa_fits.push(e.name.0.clone());
+            entity_fits.push(e.name.1.clone());
         }
 
         if soa_fits.is_empty() {
             continue;
         }
 
+        let accessor_name = quote::format_ident!("{}Accessor", system_sig.0);
+        let lock_name = quote::format_ident!("{}Lock", system_sig.0);
+        let iterator_name = quote::format_ident!("{}Iterator", system_sig.0);
+
+        let fn_name = quote::format_ident!("get{}", to_snake_ident(&accessor_name));
+
+        let mut system_s = Vec::new();
         let component_types: Vec<Ident> = system_sig
             .1
             .iter()
-            .map(|x| {
-                let i = component_labels.iter().find(|y| y.0 == *x).unwrap();
-                i.1.clone()
+            .filter_map(|x| {
+                if x.1 == key {
+                    keyed = true;
+                    None
+                } else {
+                    system_s.push(x.clone());
+                    let i = component_labels.iter().find(|y| y.0 == x.1).unwrap();
+                    Some(i.1.clone())
+                }
             })
             .collect();
 
         output.extend(build_accessor_struct(
             &accessor_name,
             &iterator_name,
-            &system_sig.1,
+            &lock_name,
+            &system_s,
             &component_types,
+            &entity_fits,
+            keyed,
             soa_fits.len(),
         ));
 
         output2.extend(build_accessor_constructors(
             &fn_name,
             &accessor_name,
-            &system_sig.1,
+            &system_s,
             &soa_fits,
         ));
     }
@@ -81,73 +89,231 @@ pub fn generate_accessors(
 fn build_accessor_struct(
     accessor_name: &Ident,
     iterator_name: &Ident,
-    field_names: &Vec<Ident>,
+    lock_name: &Ident,
+    field_names: &Vec<(bool, Ident)>,
     field_types: &Vec<Ident>,
+    entity_names: &Vec<Ident>,
+    keyed: bool,
     count: usize,
 ) -> TokenStream {
-    let first_fn = field_names[0].clone();
-
     let mut arrays = Vec::new();
+    let mut indices: Vec<usize> = (0..entity_names.len()).map(|x| x).collect();
 
     for f_n in field_names {
         let mut t = Vec::new();
-
-        for c in 0..count {
-            t.push(quote! {
-                self.#f_n [#c] .lock().unwrap()
-            })
+        let f_name = &f_n.1;
+        if f_n.0 {
+            for c in 0..count {
+                t.push(quote! {
+                    self.#f_name [#c] .write().unwrap()
+                })
+            }
+        } else {
+            for c in 0..count {
+                t.push(quote! {
+                    self.#f_name [#c] .read().unwrap()
+                })
+            }
         }
-
         arrays.push(quote! {
             [ #(#t),*]
         });
     }
 
+    let mut iter_types = Vec::new();
+    let mut iter_ptr_types = Vec::new();
+    let mut iter_mut_tpes = Vec::new();
+    let lock_types: Vec<TokenStream> = field_names
+        .iter()
+        .zip(field_types.iter())
+        .map(|(f_name, f_type)| {
+            let field_name = &f_name.1;
+            if f_name.0 {
+                iter_types.push(quote! {
+                    mut #f_type
+                });
+                iter_ptr_types.push(quote! {
+                    as_mut_ptr()
+                });
+                iter_mut_tpes.push(quote! {
+                    &mut *
+                });
+                quote! {
+                    RwLockWriteGuard<'a, Vec< #f_type >>
+                }
+            } else {
+                iter_types.push(quote! {
+                    #f_type
+                });
+                iter_ptr_types.push(quote! {
+                    as_ptr()
+                });
+                iter_mut_tpes.push(quote! {
+                    & *
+                });
+
+                quote! {
+                    RwLockReadGuard<'a, Vec< #f_type >>
+                }
+            }
+        })
+        .collect();
+
+    let mut t = Vec::new();
+    for c in 0..count {
+        t.push(quote! {
+            self.generations[#c] .read().unwrap()
+        })
+    }
+    let generations = quote! {
+        [ #(#t),*]
+    };
+
+    let mut t = Vec::new();
+    for c in 0..count {
+        t.push(quote! {
+            self.entity_states[#c] .read().unwrap()
+        })
+    }
+    let entity_states = quote! {
+        [ #(#t),*]
+    };
+
+    let mut keystuff_type = TokenStream::new();
+    let mut keystuff_name = TokenStream::new();
+    let mut keystuff_next_def = TokenStream::new();
+
+    if keyed {
+        keystuff_next_def = quote! {
+            let key = Key{
+                index: self.y,
+                generation: self.generations[self.i][self.y],
+                entity_type: self.entity_types[self.i]
+            };
+        };
+        keystuff_type = quote! {
+            ,Key
+        };
+        keystuff_name = quote! {
+            ,key
+        };
+    }
+
+    let field_names: Vec<Ident> = field_names.iter().map(|x| x.1.clone()).collect();
+
     let t = quote! {
 
         #[derive(Debug)]
         pub struct #accessor_name {
-            #(  #field_names : [ Arc<Mutex<Vec< #field_types >>> ;  #count ] ),*
+            #( #field_names :   [ Arc<RwLock<Vec< #field_types >>> ;  #count ] , )*
+
+            generations:        [ Arc<RwLock<Vec<u32>>>;  #count ],
+            entity_states:      [ Arc<RwLock<Vec<EntityState>>>;  #count ],
         }
 
         impl #accessor_name {
-            pub fn iter(&mut self) -> #iterator_name {
-                #iterator_name {
-                    #( #field_names: #arrays ),* ,
-                    i: 0,
-                    y: 0
+            pub fn lock(&mut self) -> #lock_name {
+                #lock_name {
+                    #( #field_names: #arrays ,)*
+
+                    entity_types: [ #( EntityType:: #entity_names ),* ] ,
+
+                    generations: #generations,
+                    entity_states: #entity_states,
+
                 }
             }
         }
 
         #[derive(Debug)]
-        pub struct #iterator_name<'a> {
-            #(  #field_names : [ MutexGuard<'a, Vec< #field_types >> ;  #count ] ),* ,
-            i: usize,
-            y: usize,
+        pub struct #lock_name<'a> {
+            #( #field_names :   [ #lock_types ;  #count ], )*
+
+            entity_types:       [ EntityType; #count ],
+            generations:        [ RwLockReadGuard<'a, Vec<u32>>;  #count ],
+            entity_states:      [ RwLockReadGuard<'a, Vec<EntityState>>;  #count ],
         }
 
-        impl<'a> Iterator for #iterator_name <'a> {
-            type Item = ( #( &'a mut #field_types  ),* );
+        impl<'a> #lock_name<'a> {
+            pub fn iter<'b>(&'b mut self) -> #iterator_name <'a,'b>{
+                #iterator_name {
+                    #( #field_names:    &mut self. #field_names ),* ,
 
-            fn next<'b>(&mut self) -> Option<Self::Item> {
+                    entity_types:  & self.entity_types,
+                    generations:   & self.generations,
+                    entity_states: & self.entity_states,
 
-                let temp = if self. #first_fn [self.i] .len() > self.y {
-                    #( let #field_names = self. #field_names [self.i] .as_mut_ptr() ;)*
-                    unsafe {Some(
-                        ( #(&mut *  #field_names.add(self.y)),* )
-                    )}
-                }else {
-                    self.y = 0;
-                    self.i += 1;
-                    if self. #first_fn.len() > self.i {
-                        #( let #field_names = self. #field_names [self.i] .as_mut_ptr() ;)*
+                    i: 0,
+                    y: 0
+                }
+            }
+            pub fn get<'b>(&'b mut self,key: Key) -> Option<( #( &'a #iter_types  ),* )> {
+
+                let i = match key.entity_type {
+                    #(
+                        EntityType:: #entity_names => {
+
+                            #indices
+                        }
+                    ),*
+                    _ => return None
+                };
+
+                if self.entity_states[i][key.index] == EntityState::Occupied {
+                    if self.generations[i][key.index] == key.generation{
+                        #( let #field_names = self. #field_names [i] . #iter_ptr_types ;)*
                         unsafe {Some(
-                            ( #(&mut *  #field_names.add(self.y)),* )
+                            ( #(#iter_mut_tpes  #field_names.add(key.index) ),*)
                         )}
-                    }else{
+                    }else {
                         None
                     }
+                }else{
+                    None
+                }
+            }
+        }
+
+        #[derive(Debug)]
+        pub struct #iterator_name<'a,'b> {
+            #(  #field_names :  &'b mut [ #lock_types ;  #count ] ,)*
+
+            entity_types:       &'b [ EntityType; #count ],
+            generations:        &'b [ RwLockReadGuard<'a, Vec<u32>>;  #count ],
+            entity_states:      &'b [ RwLockReadGuard<'a, Vec<EntityState>>;  #count ],
+
+            i: usize,
+            y: usize
+        }
+
+        impl<'a,'b> Iterator for #iterator_name <'a,'b> {
+            type Item = ( #( &'a #iter_types  ),* #keystuff_type );
+
+            fn next(&mut self) -> Option<Self::Item> {
+
+                loop {
+                    while self. entity_states [self.i] .len() <= self.y {
+                        self.y = 0;
+                        self.i += 1;
+                        if self.i == self. entity_states .len(){
+                            return None
+                        }
+                    }
+
+                    match self.entity_states[self.i][self.y] {
+                        EntityState::Occupied => break,
+                        EntityState::Free{..} => self.y +=1
+                    };
+                }
+
+                #keystuff_next_def
+
+                let temp = {
+
+                    #( let #field_names = self. #field_names [self.i] . #iter_ptr_types ;)*
+                    unsafe {Some(
+                        ( #(#iter_mut_tpes  #field_names.add(self.y) ),* #keystuff_name)
+                    )}
                 };
 
                 self.y += 1;
@@ -163,17 +329,24 @@ fn build_accessor_struct(
 fn build_accessor_constructors(
     fn_name: &Ident,
     accessor_name: &Ident,
-    field_names: &Vec<Ident>,
+    field_names: &Vec<(bool, Ident)>,
     soa_names: &Vec<Ident>,
 ) -> TokenStream {
     let mut arrays: Vec<TokenStream> = Vec::new();
 
+    let field_names: Vec<Ident> = field_names.iter().map(|x| x.1.clone()).collect();
+
     for field in field_names {
         let t = quote!(
-            #field: [ #( self. #soa_names . #field .clone() ),* ],
+            #field: [ #( self. #soa_names . #field .clone() ),* ] ,
         );
         arrays.push(t);
     }
+
+    arrays.push(quote! {
+        generations: [ #(self. #soa_names .generation.clone()),* ],
+        entity_states: [ #(self. #soa_names .entity_state.clone()),* ]
+    });
 
     let t = quote! {
         pub fn #fn_name (&self) -> #accessor_name{

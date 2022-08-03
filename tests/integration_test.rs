@@ -1,13 +1,10 @@
 use chained_component_system::chained_component_system;
 
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{sync::*, thread, time::Duration};
 
-#[derive(Debug, Default, Clone)]
-pub struct Foo(&'static str);
-#[derive(Debug, Default, Clone)]
-pub struct Goo(u32);
-#[derive(Debug, Default, Clone)]
-pub struct Hoo(f32);
+pub mod structs;
+
+use structs::*;
 
 chained_component_system!(
     components{
@@ -19,48 +16,125 @@ chained_component_system!(
 
     entities{
         Peon(foo, goo),
-        Tree(foo, goo, loo),
+        NoCont(foo,goo,hoo,loo),
+        Tree(loo, goo, foo),
         Mage(loo, goo, hoo)
     };
 
     global_systems{
-        FooGooSystem(foo, goo),
-        FooGooLooSystem(foo, goo, loo),
-        GooLooSystem(goo, loo),
+        FooSystem(foo,KEY),
         GooSystem(goo),
-        FooLooSystem(foo,loo),
+        LooSystem(loo),
+        GooLooSystem(goo, loo),
+        FooLooSystem(foo, loo),
+        FooGooSystem(foo, goo),
+        FooGooLooSystem(foo, goo, loo, KEY),
     };
 );
 
 #[test]
 fn test_add() {
-    let mut ecs = CHAINED_ECS::default();
+    let mut ecs = CHAINED_ECS::new();
 
-    ecs.peon_soa.new_peon_soa(Foo("Peon"), Goo(11));
-    ecs.tree_soa
-        .new_tree_soa(Foo("Tree"), Goo(22), Foo("Loo Tree"));
-    ecs.mage_soa
-        .new_mage_soa(Foo("Loo Mage"), Goo(33), Hoo(0.0));
-
-    let mut a = ecs.get_foo_goo_system_accessor();
+    let mut a = ecs.get_foo_system_accessor();
     let mut b = ecs.get_goo_loo_system_accessor();
     let mut c = ecs.get_goo_system_accessor();
     let mut d = ecs.get_foo_goo_loo_system_accessor();
+    let mut d2 = ecs.get_foo_goo_loo_system_accessor();
     let mut e = ecs.get_foo_loo_system_accessor();
 
-    for i in a.iter() {
-        println!("foo goo     ____{:?}", i);
+    ecs.add_peon_soa(Foo("Foo Peons"), Goo(11));
+    ecs.add_peon_soa(Foo("Foo Peons2"), Goo(22));
+    ecs.add_tree_soa(Foo("Loo Tree"), Goo(23), Foo("Foo Tree"));
+    ecs.add_mage_soa(Foo("Loo Mage"), Goo(33), Hoo(0.0));
+    
+    let ta = thread::spawn(move || {
+        let mut foo_key = Vec::new();
+        for i in a.lock().iter() {
+            thread::sleep(Duration::from_millis(100));
+            println!("1 foo         ____{:?}", i);
+
+            foo_key.push(i.1);
+        }
+        foo_key
+    });
+
+    let tb = thread::spawn(move || {
+        for i in b.lock().iter() {
+            thread::sleep(Duration::from_millis(100));
+            println!("2     goo loo ____{:?}", i);
+        }
+    });
+
+    let te = thread::spawn(move || {
+        for i in e.lock().iter() {
+            thread::sleep(Duration::from_millis(100));
+            println!("3 foo     loo ____{:?}", i);
+        }
+    });
+
+    let tc = thread::spawn(move || {
+        for i in c.lock().iter() {
+            thread::sleep(Duration::from_millis(100));
+            println!("4     goo     ____{:?}", i);
+        }
+    });
+
+    let td = thread::spawn(move || {
+        let mut d_lock = d.lock();
+        for i in d_lock.iter() {
+            thread::sleep(Duration::from_millis(100));
+            println!("5 foo goo loo ____{:?}", i);
+        }
+    });
+
+    let keys = ta.join().unwrap();
+    tb.join().unwrap();
+    tc.join().unwrap();
+    td.join().unwrap();
+    te.join().unwrap();
+
+    let mut d_lock = d2.lock();
+
+    for k in keys {
+        println!("{:?}", k);
+        let a = d_lock.get(k);
+        println!("{:?}", a);
     }
-    for i in b.iter() {
-        println!("    goo loo ____{:?}", i);
+}
+
+#[test]
+fn static_t() {
+    let mut ecs = CHAINED_ECS::new();
+    ecs.add_peon_soa(Foo("Foo 1"), Goo(1));
+    ecs.add_peon_soa(Foo("Foo 2"), Goo(2));
+    ecs.add_peon_soa(Foo("Foo 3"), Goo(3));
+    ecs.add_peon_soa(Foo("Foo 4"), Goo(4));
+
+    let mut peon = ecs.get_peon();
+
+    let to_delete:Vec<Key> = peon.lock().iter().filter_map(|x| {
+        if x.1.0 % 2 == 0 {
+            Some(x.2.clone())
+        }else{
+            None
+        }
+    }).collect();
+
+    for d in to_delete.iter() {
+        if ecs.delete(d).is_none() {
+            panic!("delete did not work");
+        };
     }
-    for i in c.iter() {
-        println!("    goo     ____{:?}", i);
+
+    ecs.add_peon_soa(Foo("Foo 13"), Goo(13));
+    ecs.add_peon_soa(Foo("Foo 14"), Goo(14));
+    ecs.add_peon_soa(Foo("Foo 14"), Goo(15));
+
+    let mut out = String::new();
+    for peon in peon.lock().iter() {
+        out = format!("{} {}", out, peon.1 .0);
     }
-    for i in d.iter() {
-        println!("foo goo loo ____{:?}", i);
-    }
-    for i in e.iter() {
-        println!("foo     loo ____{:?}", i);
-    }
+
+    assert_eq!(out, " 1 14 3 13 15");
 }

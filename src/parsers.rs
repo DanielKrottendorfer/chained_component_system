@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 
 use proc_macro2::*;
+use quote::format_ident;
 
 pub fn parse_component_labels(g: &Group) -> Vec<(Ident, Ident)> {
     let mut labels = Vec::new();
@@ -34,10 +35,12 @@ pub fn parse_component_labels(g: &Group) -> Vec<(Ident, Ident)> {
     labels
 }
 
-pub fn parse_signatures(group: &proc_macro2::Group) -> Vec<(Ident, Vec<Ident>)> {
+pub fn parse_signatures(group: &proc_macro2::Group) -> Vec<(Ident, Vec<(bool, Ident)>)> {
     let mut input = group.stream().into_iter();
 
     let mut entities = Vec::new();
+    let mut_ident = format_ident!("mut");
+
     loop {
         let signature: Vec<TokenTree> = input
             .borrow_mut()
@@ -55,19 +58,40 @@ pub fn parse_signatures(group: &proc_macro2::Group) -> Vec<(Ident, Vec<Ident>)> 
             _ => panic!("Entity name missing"),
         };
 
-        let fields = match &signature[1] {
-            TokenTree::Group(g) => g.stream().into_iter(),
+        let mut entity_sigmature = Vec::new();
+
+        match &signature[1] {
+            TokenTree::Group(g) => {
+                let mut s = g.stream().into_iter();
+
+                loop {
+                    let t = s.next();
+
+                    if let Some(f) = t {
+                        match f {
+                            TokenTree::Ident(i) => {
+                                if i.eq(&mut_ident) {
+                                    let t = s.next().expect("Component name missing");
+                                    if let TokenTree::Ident(i) = t {
+                                        entity_sigmature.push((true, i));
+                                    } else {
+                                        panic!("unexpected symbol at {}", entity_ident.to_string());
+                                    }
+                                } else {
+                                    entity_sigmature.push((false, i));
+                                }
+                            }
+                            TokenTree::Punct(_) => (),
+                            _ => panic!("unexpected symbol at {}", entity_ident.to_string()),
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
             _ => panic!("Bracket missing"),
         };
 
-        let mut entity_sigmature = Vec::new();
-        for f in fields {
-            match f {
-                TokenTree::Ident(i) => entity_sigmature.push(i),
-                TokenTree::Punct(_) => (),
-                _ => panic!("unexpected symbol at {}", entity_ident.to_string()),
-            }
-        }
         entities.push((entity_ident, entity_sigmature));
     }
     entities

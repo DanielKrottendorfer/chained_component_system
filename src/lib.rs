@@ -1,6 +1,9 @@
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, fs::File, io::Write};
 
-use generators::{accessor_generator::generate_accessors, struct_generator::generate_structs};
+use generators::{
+    accessor_generator::generate_accessors, entity_accessor_generator::generate_entity_accessor,
+    struct_generator::generate_structs,
+};
 use parsers::*;
 use proc_macro2::TokenTree;
 use quote::quote;
@@ -54,15 +57,18 @@ pub fn chained_component_system(_item: proc_macro::TokenStream) -> proc_macro::T
     let component_labels = component_labels.expect("components missing");
     let entity_signatures = entity_signatures.expect("entities missing");
     let system_signatures = system_signatures.expect("global_systems missing");
-
     let mut ecs_soas = Vec::new();
     let soas = generate_structs(&entity_signatures, &component_labels, &mut ecs_soas);
     let accessors = generate_accessors(&component_labels, &system_signatures, &ecs_soas);
-
+    let e_accessors = generate_entity_accessor(&ecs_soas);
     let output = quote! {
         #soas
         #accessors
+        #e_accessors
     };
+
+    // let mut file = File::create("foo.txt").unwrap();
+    // file.write_all(output.to_string().as_bytes()).unwrap();
 
     output.into()
 }
