@@ -1,9 +1,9 @@
 use std::borrow::BorrowMut;
 
 use proc_macro2::*;
-use quote::format_ident;
+use quote::{format_ident, TokenStreamExt};
 
-pub fn parse_component_labels(g: &Group) -> Vec<(Ident, Ident)> {
+pub fn parse_component_labels(g: &Group) -> Vec<(Ident, TokenStream)> {
     let mut labels = Vec::new();
     let mut input = g.stream().into_iter();
 
@@ -19,17 +19,18 @@ pub fn parse_component_labels(g: &Group) -> Vec<(Ident, Ident)> {
             break;
         }
 
-        let id = match &component_def[0] {
+        let ident = match &component_def[0] {
             TokenTree::Ident(i) => i.clone(),
             _ => panic!("missing component ident"),
         };
 
-        let ty = match &component_def[2] {
-            TokenTree::Ident(i) => i.clone(),
-            _ => panic!("missing component type"),
-        };
+        let mut ty = TokenStream::new();
 
-        labels.push((id, ty));
+        for y in 2..component_def.len() {
+            ty.append(component_def[y].clone());
+        }
+
+        labels.push((ident, ty));
     }
 
     labels

@@ -1,4 +1,4 @@
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
 
 pub mod accessor_generator;
 pub mod entity_accessor_generator;
@@ -7,7 +7,7 @@ pub mod struct_generator;
 #[derive(Debug)]
 pub struct EcsSoa {
     pub name: (Ident, Ident),
-    pub fields: Vec<(Ident, Ident)>,
+    pub fields: Vec<(Ident, TokenStream)>,
 }
 
 pub fn to_snake_ident(i: &Ident) -> Ident {

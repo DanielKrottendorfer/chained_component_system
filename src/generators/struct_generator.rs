@@ -6,7 +6,7 @@ use quote::{format_ident, quote};
 
 pub fn generate_structs(
     entity_signatures: &Vec<(Ident, Vec<(bool, Ident)>)>,
-    component_labels: &Vec<(Ident, Ident)>,
+    component_labels: &Vec<(Ident, TokenStream)>,
     soa_structs: &mut Vec<EcsSoa>,
 ) -> TokenStream {
     let mut struct_output = TokenStream::new();

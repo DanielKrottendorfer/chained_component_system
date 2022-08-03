@@ -16,7 +16,7 @@ pub fn generate_entity_accessor(ecs_soas: &Vec<EcsSoa>) -> TokenStream {
         let fn_name = quote::format_ident!("get{}", to_snake_ident(entity_name));
 
         let field_names: Vec<Ident> = ecs_soa.fields.iter().map(|x| x.0.clone()).collect();
-        let types: Vec<Ident> = ecs_soa.fields.iter().map(|x| x.1.clone()).collect();
+        let types: Vec<TokenStream> = ecs_soa.fields.iter().map(|x| x.1.clone()).collect();
 
         out.extend(quote! {
 

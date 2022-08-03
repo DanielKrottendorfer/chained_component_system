@@ -1,10 +1,10 @@
 use proc_macro2::*;
-use quote::{format_ident, quote};
+use quote::quote;
 
 use super::{to_snake_ident, EcsSoa};
 
 pub fn generate_accessors(
-    component_labels: &Vec<(Ident, Ident)>,
+    component_labels: &Vec<(Ident, TokenStream)>,
     system_signatures: &Vec<(Ident, Vec<(bool, Ident)>)>,
     ecs_soas: &Vec<EcsSoa>,
 ) -> TokenStream {
@@ -43,7 +43,7 @@ pub fn generate_accessors(
         let fn_name = quote::format_ident!("get{}", to_snake_ident(&accessor_name));
 
         let mut system_s = Vec::new();
-        let component_types: Vec<Ident> = system_sig
+        let component_types: Vec<TokenStream> = system_sig
             .1
             .iter()
             .filter_map(|x| {
@@ -91,13 +91,13 @@ fn build_accessor_struct(
     iterator_name: &Ident,
     lock_name: &Ident,
     field_names: &Vec<(bool, Ident)>,
-    field_types: &Vec<Ident>,
+    field_types: &Vec<TokenStream>,
     entity_names: &Vec<Ident>,
     keyed: bool,
     count: usize,
 ) -> TokenStream {
     let mut arrays = Vec::new();
-    let mut indices: Vec<usize> = (0..entity_names.len()).map(|x| x).collect();
+    let indices: Vec<usize> = (0..entity_names.len()).map(|x| x).collect();
 
     for f_n in field_names {
         let mut t = Vec::new();
@@ -127,7 +127,7 @@ fn build_accessor_struct(
         .iter()
         .zip(field_types.iter())
         .map(|(f_name, f_type)| {
-            let field_name = &f_name.1;
+            let _field_name = &f_name.1;
             if f_name.0 {
                 iter_types.push(quote! {
                     mut #f_type

@@ -6,19 +6,23 @@ pub mod structs;
 
 use structs::*;
 
+use cgmath::Vector3;
+
 chained_component_system!(
     components{
         foo: Foo,
         goo: Goo,
         hoo: Hoo,
-        loo: Foo
+        loo: Foo,
+        v: (usize,String)
     };
 
     entities{
         Peon(foo, goo),
         NoCont(foo,goo,hoo,loo),
         Tree(loo, goo, foo),
-        Mage(loo, goo, hoo)
+        Mage(loo, goo, hoo),
+        Ve(foo,v)
     };
 
     global_systems{
@@ -47,7 +51,7 @@ fn test_add() {
     ecs.add_peon_soa(Foo("Foo Peons2"), Goo(22));
     ecs.add_tree_soa(Foo("Loo Tree"), Goo(23), Foo("Foo Tree"));
     ecs.add_mage_soa(Foo("Loo Mage"), Goo(33), Hoo(0.0));
-    
+
     let ta = thread::spawn(move || {
         let mut foo_key = Vec::new();
         for i in a.lock().iter() {
@@ -113,13 +117,17 @@ fn static_t() {
 
     let mut peon = ecs.get_peon();
 
-    let to_delete:Vec<Key> = peon.lock().iter().filter_map(|x| {
-        if x.1.0 % 2 == 0 {
-            Some(x.2.clone())
-        }else{
-            None
-        }
-    }).collect();
+    let to_delete: Vec<Key> = peon
+        .lock()
+        .iter()
+        .filter_map(|x| {
+            if x.1 .0 % 2 == 0 {
+                Some(x.2.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
 
     for d in to_delete.iter() {
         if ecs.delete(d).is_none() {
@@ -129,7 +137,7 @@ fn static_t() {
 
     ecs.add_peon_soa(Foo("Foo 13"), Goo(13));
     ecs.add_peon_soa(Foo("Foo 14"), Goo(14));
-    ecs.add_peon_soa(Foo("Foo 14"), Goo(15));
+    ecs.add_peon_soa(Foo("Foo 15"), Goo(15));
 
     let mut out = String::new();
     for peon in peon.lock().iter() {
@@ -137,4 +145,14 @@ fn static_t() {
     }
 
     assert_eq!(out, " 1 14 3 13 15");
+}
+
+#[test]
+fn static_t2() {
+    let mut ecs = CHAINED_ECS::new();
+    ecs.add_ve_soa(Foo("foo vec"), (3, String::from("123")));
+
+    for i in ecs.get_ve().lock().iter() {
+        println!("{:?}", i);
+    }
 }
