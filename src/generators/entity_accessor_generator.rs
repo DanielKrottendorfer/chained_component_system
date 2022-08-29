@@ -41,7 +41,6 @@ pub fn generate_entity_accessor(ecs_soas: &Vec<EcsSoa>) -> TokenStream {
                 pub fn iter<'b>(&'b mut self) -> #iterator_name <'a,'b>{
                     #iterator_name {
                         #( #field_names:    &mut self. #field_names ,)*
-                        generation:         &mut self.generation,
                         entity_state:       &mut self.entity_state,
                         i: 0
                     }
@@ -64,13 +63,12 @@ pub fn generate_entity_accessor(ecs_soas: &Vec<EcsSoa>) -> TokenStream {
 
             pub struct #iterator_name<'a,'b> {
                 #( #field_names :   &'b mut RwLockWriteGuard<'a, Vec< #types >> ,)*
-                generation:         &'b mut RwLockReadGuard<'a,Vec<u32>>,
                 entity_state:       &'b mut RwLockReadGuard<'a,Vec<EntityState>>,
                 i: usize,
             }
 
             impl<'a,'b> Iterator for #iterator_name <'a,'b> {
-                type Item = ( #( &'a mut #types  ),* , Key);
+                type Item = ( #( &'a mut #types  ),* );
 
                 fn next(&mut self) -> Option<Self::Item> {
 
@@ -84,15 +82,10 @@ pub fn generate_entity_accessor(ecs_soas: &Vec<EcsSoa>) -> TokenStream {
                         }
                     }
                     let temp = {
-                        let key = Key{
-                            index: self.i,
-                            generation: self.generation[self.i],
-                            entity_type: EntityType:: #entity_name
-                        };
 
                         #( let #field_names = self. #field_names .as_mut_ptr() ;)*
                         unsafe {Some(
-                            ( #(&mut *  #field_names.add(self.i)),* , key )
+                            ( #(&mut *  #field_names.add(self.i)),*)
                         )}
                     };
                     self.i += 1;

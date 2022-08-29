@@ -15,14 +15,9 @@ pub fn generate_accessors(
         let mut soa_fits = Vec::new();
         let mut entity_fits = Vec::new();
 
-        let mut keyed = false;
-        let key = quote::format_ident!("KEY");
 
         'ecsloop: for e in ecs_soas {
             for f in system_sig.1.iter() {
-                if f.1 == key {
-                    continue;
-                }
 
                 if !e.fields.iter().any(|x| x.0 == f.1) {
                     continue 'ecsloop;
@@ -47,14 +42,9 @@ pub fn generate_accessors(
             .1
             .iter()
             .filter_map(|x| {
-                if x.1 == key {
-                    keyed = true;
-                    None
-                } else {
-                    system_s.push(x.clone());
-                    let i = component_labels.iter().find(|y| y.0 == x.1).unwrap();
-                    Some(i.1.clone())
-                }
+                system_s.push(x.clone());
+                let i = component_labels.iter().find(|y| y.0 == x.1).unwrap();
+                Some(i.1.clone())
             })
             .collect();
 
@@ -65,7 +55,6 @@ pub fn generate_accessors(
             &system_s,
             &component_types,
             &entity_fits,
-            keyed,
             soa_fits.len(),
         ));
 
@@ -93,7 +82,6 @@ fn build_accessor_struct(
     field_names: &Vec<(bool, Ident)>,
     field_types: &Vec<TokenStream>,
     entity_names: &Vec<Ident>,
-    keyed: bool,
     count: usize,
 ) -> TokenStream {
     let mut arrays = Vec::new();
@@ -179,25 +167,6 @@ fn build_accessor_struct(
         [ #(#t),*]
     };
 
-    let mut keystuff_type = TokenStream::new();
-    let mut keystuff_name = TokenStream::new();
-    let mut keystuff_next_def = TokenStream::new();
-
-    if keyed {
-        keystuff_next_def = quote! {
-            let key = Key{
-                index: self.y,
-                generation: self.generations[self.i][self.y],
-                entity_type: self.entity_types[self.i]
-            };
-        };
-        keystuff_type = quote! {
-            ,Key
-        };
-        keystuff_name = quote! {
-            ,key
-        };
-    }
 
     let field_names: Vec<Ident> = field_names.iter().map(|x| x.1.clone()).collect();
 
@@ -287,7 +256,7 @@ fn build_accessor_struct(
         }
 
         impl<'a,'b> Iterator for #iterator_name <'a,'b> {
-            type Item = ( #( &'a #iter_types  ),* #keystuff_type );
+            type Item = ( #( &'a #iter_types  ),*);
 
             fn next(&mut self) -> Option<Self::Item> {
 
@@ -306,13 +275,11 @@ fn build_accessor_struct(
                     };
                 }
 
-                #keystuff_next_def
-
                 let temp = {
 
                     #( let #field_names = self. #field_names [self.i] . #iter_ptr_types ;)*
                     unsafe {Some(
-                        ( #(#iter_mut_tpes  #field_names.add(self.y) ),* #keystuff_name)
+                        ( #(#iter_mut_tpes  #field_names.add(self.y) ),*)
                     )}
                 };
 
