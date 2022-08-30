@@ -207,14 +207,12 @@ fn build_accessor_struct(
         };
     }
 
-    let maybe_mutable = TokenStream::new();
+    let mut maybe_mutable = TokenStream::new();
     if is_mutable {
-        quote! {
+        maybe_mutable = quote! {
             mut
         }
-    } else {
-        quote! {}
-    };
+    }
 
     let field_names: Vec<Ident> = field_names.iter().map(|x| x.1.clone()).collect();
 

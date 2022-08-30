@@ -6,8 +6,6 @@ pub mod structs;
 
 use structs::*;
 
-
-
 chained_component_system!(
     components{
         foo: Foo,
@@ -29,7 +27,7 @@ chained_component_system!(
         FooSystem(foo,KEY),
         GooSystem(goo),
         LooSystem(loo),
-        GooLooSystem(goo, loo),
+        GooLooSystem(goo, mut loo),
         FooLooSystem(foo, loo),
         FooGooSystem(foo, goo, KEY),
         FooGooLooSystem(foo, goo, loo, KEY),
@@ -41,7 +39,7 @@ fn test_add() {
     let mut ecs = CHAINED_ECS::new();
 
     let a = ecs.get_foo_system_accessor();
-    let b = ecs.get_goo_loo_system_accessor();
+    let mut b = ecs.get_goo_loo_system_accessor();
     let c = ecs.get_goo_system_accessor();
     let d = ecs.get_foo_goo_loo_system_accessor();
     let d2 = ecs.get_foo_goo_loo_system_accessor();
