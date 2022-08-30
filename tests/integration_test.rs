@@ -6,7 +6,7 @@ pub mod structs;
 
 use structs::*;
 
-use cgmath::Vector3;
+
 
 chained_component_system!(
     components{
@@ -31,7 +31,7 @@ chained_component_system!(
         LooSystem(loo),
         GooLooSystem(goo, loo),
         FooLooSystem(foo, loo),
-        FooGooSystem(foo, goo),
+        FooGooSystem(foo, goo, KEY),
         FooGooLooSystem(foo, goo, loo, KEY),
     };
 );
@@ -40,12 +40,12 @@ chained_component_system!(
 fn test_add() {
     let mut ecs = CHAINED_ECS::new();
 
-    let mut a = ecs.get_foo_system_accessor();
-    let mut b = ecs.get_goo_loo_system_accessor();
-    let mut c = ecs.get_goo_system_accessor();
-    let mut d = ecs.get_foo_goo_loo_system_accessor();
-    let mut d2 = ecs.get_foo_goo_loo_system_accessor();
-    let mut e = ecs.get_foo_loo_system_accessor();
+    let a = ecs.get_foo_system_accessor();
+    let b = ecs.get_goo_loo_system_accessor();
+    let c = ecs.get_goo_system_accessor();
+    let d = ecs.get_foo_goo_loo_system_accessor();
+    let d2 = ecs.get_foo_goo_loo_system_accessor();
+    let e = ecs.get_foo_loo_system_accessor();
 
     ecs.add_peon_soa(Foo("Foo Peons"), Goo(11));
     ecs.add_peon_soa(Foo("Foo Peons2"), Goo(22));
@@ -85,7 +85,7 @@ fn test_add() {
     });
 
     let td = thread::spawn(move || {
-        let mut d_lock = d.lock();
+        let d_lock = d.lock();
         for i in d_lock.iter() {
             thread::sleep(Duration::from_millis(100));
             println!("5 foo goo loo ____{:?}", i);
@@ -98,7 +98,7 @@ fn test_add() {
     td.join().unwrap();
     te.join().unwrap();
 
-    let mut d_lock = d2.lock();
+    let d_lock = d2.lock();
 
     for k in keys {
         println!("{:?}", k);
@@ -150,9 +150,15 @@ fn static_t() {
 #[test]
 fn static_t2() {
     let mut ecs = CHAINED_ECS::new();
-    ecs.add_ve_soa(Foo("foo vec"), (3, String::from("123")));
+    ecs.add_peon_soa(Foo("Foo 13"), Goo(13));
+    ecs.add_peon_soa(Foo("Foo 14"), Goo(14));
+    ecs.add_peon_soa(Foo("Foo 15"), Goo(15));
 
-    for i in ecs.get_ve().lock().iter() {
-        println!("{:?}", i);
+    let b = ecs.get_foo_goo_system_accessor();
+    let a = b.lock();
+    for i in a.iter() {
+        for y in a.iter() {
+            println!("{:?} {:?}", i, y);
+        }
     }
 }

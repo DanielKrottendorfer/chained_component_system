@@ -18,8 +18,14 @@ pub fn generate_accessors(
         let mut keyed = false;
         let key = quote::format_ident!("KEY");
 
+        let mut is_mutable = false;
+
         'ecsloop: for e in ecs_soas {
             for f in system_sig.1.iter() {
+                if f.0 {
+                    is_mutable = true;
+                }
+
                 if f.1 == key {
                     continue;
                 }
@@ -66,6 +72,7 @@ pub fn generate_accessors(
             &component_types,
             &entity_fits,
             keyed,
+            is_mutable,
             soa_fits.len(),
         ));
 
@@ -94,6 +101,7 @@ fn build_accessor_struct(
     field_types: &Vec<TokenStream>,
     entity_names: &Vec<Ident>,
     keyed: bool,
+    is_mutable: bool,
     count: usize,
 ) -> TokenStream {
     let mut arrays = Vec::new();
@@ -199,6 +207,15 @@ fn build_accessor_struct(
         };
     }
 
+    let maybe_mutable = TokenStream::new();
+    if is_mutable {
+        quote! {
+            mut
+        }
+    } else {
+        quote! {}
+    };
+
     let field_names: Vec<Ident> = field_names.iter().map(|x| x.1.clone()).collect();
 
     let t = quote! {
@@ -212,7 +229,7 @@ fn build_accessor_struct(
         }
 
         impl #accessor_name {
-            pub fn lock(&mut self) -> #lock_name {
+            pub fn lock(& #maybe_mutable self) -> #lock_name {
                 #lock_name {
                     #( #field_names: #arrays ,)*
 
@@ -235,9 +252,9 @@ fn build_accessor_struct(
         }
 
         impl<'a> #lock_name<'a> {
-            pub fn iter<'b>(&'b mut self) -> #iterator_name <'a,'b>{
+            pub fn iter<'b>(&'b #maybe_mutable self) -> #iterator_name <'a,'b>{
                 #iterator_name {
-                    #( #field_names:    &mut self. #field_names ),* ,
+                    #( #field_names:    &#maybe_mutable self. #field_names ),* ,
 
                     entity_types:  & self.entity_types,
                     generations:   & self.generations,
@@ -247,7 +264,7 @@ fn build_accessor_struct(
                     y: 0
                 }
             }
-            pub fn get<'b>(&'b mut self,key: Key) -> Option<( #( &'a #iter_types  ),* )> {
+            pub fn get<'b>(&'b #maybe_mutable self,key: Key) -> Option<( #( &'a #iter_types  ),* )> {
 
                 let i = match key.entity_type {
                     #(
@@ -276,7 +293,7 @@ fn build_accessor_struct(
 
         #[derive(Debug)]
         pub struct #iterator_name<'a,'b> {
-            #(  #field_names :  &'b mut [ #lock_types ;  #count ] ,)*
+            #(  #field_names :  &'b #maybe_mutable [ #lock_types ;  #count ] ,)*
 
             entity_types:       &'b [ EntityType; #count ],
             generations:        &'b [ RwLockReadGuard<'a, Vec<u32>>;  #count ],
