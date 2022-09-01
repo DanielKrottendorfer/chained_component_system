@@ -23,8 +23,8 @@ chained_component_system!(
         Ve(foo,v)
     };
 
-    global_systems{
-        FooSystem(foo,KEY),
+    global_systems{ 
+        FooSystem(foo, KEY),
         GooSystem(goo),
         LooSystem(loo),
         GooLooSystem(goo, mut loo),

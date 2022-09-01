@@ -15,3 +15,7 @@ threadpool = "1.8.1"
 
 [lib]
 proc-macro = true
+
+
+[features]
+output_foo = []

@@ -67,8 +67,10 @@ pub fn chained_component_system(_item: proc_macro::TokenStream) -> proc_macro::T
         #e_accessors
     };
 
-    let mut file = File::create("foo.txt").unwrap();
-    file.write_all(output.to_string().as_bytes()).unwrap();
-
+    #[cfg(target_feature = "output_foo")]
+    {
+        let mut file = File::create("foo.txt").unwrap();
+        file.write_all(output.to_string().as_bytes()).unwrap();
+    }
     output.into()
 }
