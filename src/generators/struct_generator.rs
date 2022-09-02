@@ -194,12 +194,12 @@ pub fn generate_structs(
             entity_type: EntityType
         }
 
-        #[derive(Debug,Clone,Copy)]
+        #[derive(Debug,Clone,Copy,PartialEq)]
         pub enum EntityType{
             #( #entity_idents ),*
         }
 
-        #[derive(Debug,Clone)]
+        #[derive(Debug,Clone,PartialEq)]
         pub struct Key {
             index: usize,
             generation: u32,

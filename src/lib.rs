@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, fs::File, io::Write};
+use std::{borrow::BorrowMut};
 
 use generators::{
     accessor_generator::generate_accessors, entity_accessor_generator::generate_entity_accessor,
