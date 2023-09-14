@@ -85,6 +85,7 @@ pub fn generate_accessors(
     }
 
     output.extend(quote! {
+        #[allow(dead_code,non_camel_case_types)]
         impl CHAINED_ECS{
             #output2
         }
