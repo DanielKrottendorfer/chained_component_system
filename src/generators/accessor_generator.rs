@@ -15,8 +15,8 @@ pub fn generate_accessors(
         let mut soa_fits = Vec::new();
         let mut entity_fits = Vec::new();
 
-        let mut keyed = false;
-        let key = quote::format_ident!("KEY");
+
+        let mut is_mutable = false;
 
         let mut is_mutable = false;
 
@@ -53,14 +53,9 @@ pub fn generate_accessors(
             .1
             .iter()
             .filter_map(|x| {
-                if x.1 == key {
-                    keyed = true;
-                    None
-                } else {
-                    system_s.push(x.clone());
-                    let i = component_labels.iter().find(|y| y.0 == x.1).unwrap();
-                    Some(i.1.clone())
-                }
+                system_s.push(x.clone());
+                let i = component_labels.iter().find(|y| y.0 == x.1).unwrap();
+                Some(i.1.clone())
             })
             .collect();
 
@@ -188,24 +183,12 @@ fn build_accessor_struct(
         [ #(#t),*]
     };
 
-    let mut keystuff_type = TokenStream::new();
-    let mut keystuff_name = TokenStream::new();
-    let mut keystuff_next_def = TokenStream::new();
 
-    if keyed {
-        keystuff_next_def = quote! {
-            let key = Key{
-                index: self.y,
-                generation: self.generations[self.i][self.y],
-                entity_type: self.entity_types[self.i]
-            };
-        };
-        keystuff_type = quote! {
-            ,Key
-        };
-        keystuff_name = quote! {
-            ,key
-        };
+    let mut maybe_mutable = TokenStream::new();
+    if is_mutable {
+        maybe_mutable = quote! {
+            mut
+        }
     }
 
     let mut maybe_mutable = TokenStream::new();
@@ -303,7 +286,7 @@ fn build_accessor_struct(
         }
 
         impl<'a,'b> Iterator for #iterator_name <'a,'b> {
-            type Item = ( #( &'a #iter_types  ),* #keystuff_type );
+            type Item = ( #( &'a #iter_types  ),*);
 
             fn next(&mut self) -> Option<Self::Item> {
 
@@ -322,13 +305,11 @@ fn build_accessor_struct(
                     };
                 }
 
-                #keystuff_next_def
-
                 let temp = {
 
                     #( let #field_names = self. #field_names [self.i] . #iter_ptr_types ;)*
                     unsafe {Some(
-                        ( #(#iter_mut_tpes  #field_names.add(self.y) ),* #keystuff_name)
+                        ( #(#iter_mut_tpes  #field_names.add(self.y) ),*)
                     )}
                 };
 
