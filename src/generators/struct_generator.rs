@@ -160,6 +160,7 @@ pub fn generate_structs(
 
     struct_output = quote! {
         #[derive(Debug,Clone)]
+        #[allow(non_snake_case)]
         pub struct CHAINED_ECS{
             #(pub #ecs_fields : #entity_soa_idents ),*
         }
