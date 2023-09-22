@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut};
+use std::borrow::BorrowMut;
 
 use generators::{
     accessor_generator::generate_accessors, entity_accessor_generator::generate_entity_accessor,
@@ -69,6 +69,7 @@ pub fn chained_component_system(_item: proc_macro::TokenStream) -> proc_macro::T
 
     #[cfg(target_feature = "output_foo")]
     {
+        use std::{fs::File, io::Write};
         let mut file = File::create("foo.txt").unwrap();
         file.write_all(output.to_string().as_bytes()).unwrap();
     }

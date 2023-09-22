@@ -77,9 +77,9 @@ pub fn generate_structs(
         ecs_output.extend(quote! {
 
             fn #d_name (&mut self, key: &Key) -> Option<Entity> {
-
-                #( let mut #field_ident_locks = self.#ecs_field . #field_idents .write().ok()? ; )*
-                let mut generation_lock = self.#ecs_field.generation.write().ok()?;
+                // Fields will only be flagged as deleted but NEED to be locked as WRITE to prohibit access while deleting!
+                #( let #field_ident_locks = self.#ecs_field . #field_idents .write().ok()? ; )*
+                let generation_lock = self.#ecs_field.generation.write().ok()?;
                 let mut entity_state_lock = self.#ecs_field.entity_state.write().ok()?;
 
                 let g = generation_lock.get(key.index)?;
@@ -159,8 +159,8 @@ pub fn generate_structs(
     }
 
     struct_output = quote! {
+        #[allow(non_camel_case_types)]
         #[derive(Debug,Clone)]
-        #[allow(non_snake_case)]
         pub struct CHAINED_ECS{
             #(pub #ecs_fields : #entity_soa_idents ),*
         }

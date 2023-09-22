@@ -35,6 +35,24 @@ chained_component_system!(
 );
 
 #[test]
+fn test_order() {
+    let mut ecs = CHAINED_ECS::new();
+
+    let foo_goo = ecs.get_foo_goo_system_accessor();
+
+    ecs.add_peon_soa(Foo("Foo Peons"), Goo(11));
+    ecs.add_peon_soa(Foo("Foo Peons2"), Goo(22));
+    ecs.add_tree_soa(Foo("Loo Tree"), Goo(23), Foo("Foo Tree"));
+    ecs.add_mage_soa(Foo("Loo Mage"), Goo(33), Hoo(0.0));
+
+    let foo_goo_lock = foo_goo.lock();
+
+    for (foo, goo, k) in foo_goo_lock.iter() {
+        println!("{:?} {:?} {:?}", foo, goo, k)
+    }
+}
+
+#[test]
 fn test_add() {
     let mut ecs = CHAINED_ECS::new();
 
@@ -99,7 +117,7 @@ fn test_add() {
     let d_lock = d2.lock();
 
     for k in keys {
-        println!("{:?}", k);
+        print!("{:?} ", k);
         let a = d_lock.get(k);
         println!("{:?}", a);
     }
@@ -140,6 +158,7 @@ fn static_t() {
     let mut out = String::new();
     for peon in peon.lock().iter() {
         out = format!("{} {}", out, peon.1 .0);
+        println!("{:?}", peon);
     }
 
     assert_eq!(out, " 1 14 3 13 15");
